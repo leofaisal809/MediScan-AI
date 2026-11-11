@@ -1,0 +1,27 @@
+
+# Python environment
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+# Dataset
+dataset/
+
+# Uploaded images
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Local database
+backend/medical.db
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
+
+# Editor and operating system
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.log

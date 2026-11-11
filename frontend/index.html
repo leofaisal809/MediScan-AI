@@ -1,0 +1,300 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediScan - Medical Imaging</title>
+
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+</head>
+
+<body>
+
+<div class="app-container">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+
+        <h2 class="logo">MediScan</h2>
+
+        <nav>
+            <a href="#" class="active"
+               onclick="showDashboard(); return false;">
+                Dashboard
+            </a>
+
+            <a href="#"
+               onclick="showNewScan(); return false;">
+                New Scan
+            </a>
+
+            <a href="#"
+               onclick="showHistory(); return false;">
+                Scan History
+            </a>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <p>AI Medical Imaging</p>
+            <small>Chest X-ray Analysis</small>
+        </div>
+
+    </aside>
+
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+
+        <!-- ================= DASHBOARD ================= -->
+
+        <section id="dashboard-page">
+
+            <header class="topbar">
+                <div>
+                    <h2>Dashboard</h2>
+                    <p>Welcome to your medical imaging platform.</p>
+                </div>
+
+                <div class="user-profile">Medical User</div>
+            </header>
+
+
+            <!-- Welcome Section -->
+            <section class="welcome-section">
+
+                <div>
+                    <h1>Chest X-ray Analysis</h1>
+
+                    <p>
+                        Upload and analyse chest X-ray images
+                        using our AI-powered system.
+                    </p>
+
+                    <button onclick="showNewScan()">
+                        Start New Scan
+                    </button>
+                </div>
+
+            </section>
+
+
+            <!-- Statistics -->
+            <section class="stats-container">
+
+                <div class="stat-card">
+                    <h3>Total Scans</h3>
+                    <h1 id="total-scans">0</h1>
+                    <p>Images processed</p>
+                </div>
+
+                <div class="stat-card">
+                    <h3>Normal Results</h3>
+                    <h1 id="normal-count">0</h1>
+                    <p>Normal predictions</p>
+                </div>
+
+                <div class="stat-card">
+                    <h3>Pneumonia Results</h3>
+                    <h1 id="pneumonia-count">0</h1>
+                    <p>Pneumonia predictions</p>
+                </div>
+
+            </section>
+
+
+            <!-- Recent Scans -->
+            <section class="recent-section">
+
+                <h2>Recent Scans</h2>
+
+                <div class="table-wrapper">
+
+                    <table class="history-table">
+
+                        <thead>
+                            <tr>
+                                <th>Filename</th>
+                                <th>Date</th>
+                                <th>Prediction</th>
+                                <th>Confidence</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="recent-scans-body">
+                            <tr>
+                                <td colspan="4">
+                                    Loading recent scans...
+                                </td>
+                            </tr>
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </section>
+
+        </section>
+
+
+        <!-- ================= NEW SCAN ================= -->
+
+        <section id="new-scan-page" style="display: none;">
+
+            <header class="topbar">
+
+                <div>
+                    <h2>New Scan</h2>
+                    <p>Upload a chest X-ray image for analysis.</p>
+                </div>
+
+                <div class="user-profile">Medical User</div>
+
+            </header>
+
+
+            <div class="upload-container">
+
+                <h2>Upload Chest X-ray</h2>
+
+                <p>Select an X-ray image from your computer.</p>
+
+
+                <!-- Upload Box -->
+                <div class="upload-box">
+
+                    <div class="upload-icon">＋</div>
+
+                    <h3>Choose an X-ray image</h3>
+
+                    <p>PNG or JPG formats supported</p>
+
+                    <input
+                        type="file"
+                        id="scanInput"
+                        accept=".png,.jpg,.jpeg"
+                    >
+
+                </div>
+
+
+                <!-- Image Preview -->
+                <div id="preview-container" style="display: none;">
+
+                    <h3>Image Preview</h3>
+
+                    <img
+                        id="image-preview"
+                        src=""
+                        alt="X-ray preview"
+                    >
+
+                </div>
+
+
+                <!-- Analyze Button -->
+                <button id="analyze-btn" disabled>
+                    Analyze X-ray
+                </button>
+
+
+                <!-- Analysis Result -->
+              <div id="result-container" class="result-card" style="display: none;">
+
+    <h2>Analysis Result</h2>
+
+    <div class="result-details">
+        <h3 id="prediction-result"></h3>
+        <p id="confidence-result"></p>
+    </div>
+
+    <div class="confidence-bar">
+        <div id="confidence-fill"></div>
+    </div>
+
+    <p class="result-note">
+        This is an AI-generated prediction for academic purposes.
+        It is not a confirmed medical diagnosis.
+    </p>
+
+</div>
+
+
+                <!-- Disclaimer -->
+                <p class="disclaimer">
+                    This platform is an academic prototype and is not
+                    a substitute for professional medical diagnosis.
+                </p>
+
+            </div>
+
+        </section>
+
+
+        <!-- ================= SCAN HISTORY ================= -->
+
+        <section id="history-page" style="display: none;">
+
+            <header class="topbar">
+
+                <div>
+                    <h2>Scan History</h2>
+
+                    <p>
+                        View your previously analysed X-ray images.
+                    </p>
+                </div>
+
+                <div class="user-profile">Medical User</div>
+
+            </header>
+
+
+            <div class="history-container">
+
+                <h2>Previous Scans</h2>
+
+                <div class="table-wrapper">
+
+                    <table class="history-table">
+
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Filename</th>
+                                <th>Date &amp; Time</th>
+                                <th>Prediction</th>
+                                <th>Confidence</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="history-table-body">
+                            <tr>
+                                <td colspan="5">
+                                    Loading scan history...
+                                </td>
+                            </tr>
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+    </main>
+
+</div>
+
+</body>
+</html>
+
+
