@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
@@ -5,85 +6,49 @@ import os
 from werkzeug.utils import secure_filename
 
 from preprocessing import preprocess_image
-from database import save_xray_record, get_all_records
+from database import create_database, save_xray_record, get_all_records
 from predict import predict_xray, InvalidImageError
-
-
-# ==============================
-# FLASK CONFIGURATION
-# ==============================
 
 app = Flask(__name__)
 CORS(app)
 
-UPLOAD_FOLDER = os.path.join(
-    os.path.dirname(__file__),
-    "uploads"
-)
-
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# Automatically create the database when the backend starts.
+create_database()
 
-# ==============================
-# HOME ROUTE
-# ==============================
 
 @app.route("/")
 def home():
-
     return "AI Medical Imaging Backend is running!"
 
-
-# ==============================
-# UPLOAD AND PREDICT
-# ==============================
 
 @app.route("/upload", methods=["POST"])
 def upload_image():
 
     if "image" not in request.files:
-
-        return jsonify({
-            "error": "No image uploaded."
-        }), 400
+        return jsonify({"error": "No image uploaded."}), 400
 
     image = request.files["image"]
 
     if image.filename == "":
-
-        return jsonify({
-            "error": "No file selected."
-        }), 400
+        return jsonify({"error": "No file selected."}), 400
 
     filename = secure_filename(image.filename)
 
     if not filename:
+        return jsonify({"error": "Invalid filename."}), 400
 
-        return jsonify({
-            "error": "Invalid filename."
-        }), 400
-
-    file_path = os.path.join(
-        UPLOAD_FOLDER,
-        filename
-    )
-
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
     image.save(file_path)
 
     try:
-
-        # Step 1: Validate image and predict disease.
         prediction, confidence = predict_xray(file_path)
 
-        # Step 2: Preprocess only after validation succeeds.
         processed_image = preprocess_image(file_path)
 
-        # Step 3: Save valid X-ray result in database.
-        save_xray_record(
-            filename,
-            prediction,
-            confidence
-        )
+        save_xray_record(filename, prediction, confidence)
 
         return jsonify({
             "message": "X-ray processed successfully.",
@@ -94,24 +59,16 @@ def upload_image():
 
     except InvalidImageError as error:
 
-        # Remove invalid uploaded photos.
         if os.path.exists(file_path):
             os.remove(file_path)
 
-        return jsonify({
-            "error": str(error)
-        }), 400
+        return jsonify({"error": str(error)}), 400
 
     except Exception as error:
-
         return jsonify({
             "error": "Image processing failed: " + str(error)
         }), 500
 
-
-# ==============================
-# SCAN HISTORY
-# ==============================
 
 @app.route("/history", methods=["GET"])
 def scan_history():
@@ -121,7 +78,6 @@ def scan_history():
     history = []
 
     for record in records:
-
         history.append({
             "id": record[0],
             "filename": record[1],
@@ -133,10 +89,6 @@ def scan_history():
     return jsonify(history)
 
 
-# ==============================
-# DASHBOARD STATISTICS
-# ==============================
-
 @app.route("/stats", methods=["GET"])
 def dashboard_stats():
 
@@ -145,13 +97,11 @@ def dashboard_stats():
     total_scans = len(records)
 
     normal_count = sum(
-        1 for record in records
-        if record[3] == "normal"
+        1 for record in records if record[3] == "normal"
     )
 
     pneumonia_count = sum(
-        1 for record in records
-        if record[3] == "pneumonia"
+        1 for record in records if record[3] == "pneumonia"
     )
 
     return jsonify({
@@ -161,10 +111,5 @@ def dashboard_stats():
     })
 
 
-# ==============================
-# RUN SERVER
-# ==============================
-
 if __name__ == "__main__":
-
     app.run(debug=True)
