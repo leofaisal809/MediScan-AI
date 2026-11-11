@@ -1,21 +1,24 @@
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import os
-
 from werkzeug.utils import secure_filename
+import os
 
 from preprocessing import preprocess_image
 from database import create_database, save_xray_record, get_all_records
 from predict import predict_xray, InvalidImageError
 
+
 app = Flask(__name__)
 CORS(app)
 
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
+UPLOAD_FOLDER = os.path.join(
+    os.path.dirname(__file__), "uploads"
+)
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Automatically create the database when the backend starts.
+# Create database automatically
 create_database()
 
 
@@ -44,16 +47,23 @@ def upload_image():
     image.save(file_path)
 
     try:
+        # Validate image and predict
         prediction, confidence = predict_xray(file_path)
 
+        # Preprocess valid X-ray
         processed_image = preprocess_image(file_path)
 
-        save_xray_record(filename, prediction, confidence)
+        # Save prediction
+        save_xray_record(
+            filename,
+            prediction,
+            confidence
+        )
 
         return jsonify({
             "message": "X-ray processed successfully.",
             "prediction": prediction,
-            "confidence": round(confidence, 2),
+            "confidence": round(float(confidence), 2),
             "shape": list(processed_image.shape)
         }), 200
 
@@ -65,6 +75,12 @@ def upload_image():
         return jsonify({"error": str(error)}), 400
 
     except Exception as error:
+
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        app.logger.exception("Image processing failed")
+
         return jsonify({
             "error": "Image processing failed: " + str(error)
         }), 500
@@ -97,11 +113,13 @@ def dashboard_stats():
     total_scans = len(records)
 
     normal_count = sum(
-        1 for record in records if record[3] == "normal"
+        1 for record in records
+        if record[3] == "normal"
     )
 
     pneumonia_count = sum(
-        1 for record in records if record[3] == "pneumonia"
+        1 for record in records
+        if record[3] == "pneumonia"
     )
 
     return jsonify({
