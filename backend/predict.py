@@ -1,8 +1,10 @@
+
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
 from pathlib import Path
+import gc
 
 
 # ==============================
@@ -10,6 +12,13 @@ from pathlib import Path
 # ==============================
 
 device = torch.device("cpu")
+
+torch.set_num_threads(1)
+
+try:
+    torch.set_num_interop_threads(1)
+except RuntimeError:
+    pass
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -40,88 +49,116 @@ class InvalidImageError(Exception):
 
 
 # ==============================
-# LOAD CHEST X-RAY MODEL
+# SINGLE MODEL INSTANCE
 # ==============================
 
-xray_checkpoint = torch.load(
-    XRAY_MODEL_PATH,
-    map_location=device,
-    weights_only=True
-)
+model = None
+active_model = None
 
-class_names = xray_checkpoint["class_names"]
-
-xray_model = models.resnet18(weights=None)
-xray_model.fc = nn.Linear(xray_model.fc.in_features, 2)
-
-xray_model.load_state_dict(
-    xray_checkpoint["model_state_dict"]
-)
-
-xray_model.to(device)
-xray_model.eval()
+class_names = None
+validator_classes = None
 
 
-# ==============================
-# LOAD IMAGE VALIDATOR
-# ==============================
+def load_model(model_type):
 
-validator_checkpoint = torch.load(
-    VALIDATOR_MODEL_PATH,
-    map_location=device,
-    weights_only=True
-)
+    global model
+    global active_model
+    global class_names
+    global validator_classes
 
-validator_classes = validator_checkpoint["class_names"]
+    if model_type == active_model:
+        return
 
-validator_model = models.resnet18(weights=None)
-validator_model.fc = nn.Linear(
-    validator_model.fc.in_features, 2
-)
+    if model is None:
+        model = models.resnet18(weights=None)
+        model.fc = nn.Linear(model.fc.in_features, 2)
+        model.to(device)
 
-validator_model.load_state_dict(
-    validator_checkpoint["model_state_dict"]
-)
+    if model_type == "validator":
+        model_path = VALIDATOR_MODEL_PATH
+    else:
+        model_path = XRAY_MODEL_PATH
 
-validator_model.to(device)
-validator_model.eval()
-
-if "chest_xray" not in validator_classes:
-    raise RuntimeError(
-        "Validator model does not contain the chest_xray class."
+    # Load checkpoint using memory mapping.
+    checkpoint = torch.load(
+        model_path,
+        map_location="cpu",
+        weights_only=True,
+        mmap=True
     )
 
-if "non_chest" not in validator_classes:
-    raise RuntimeError(
-        "Validator model does not contain the non_chest class."
+    if model_type == "validator":
+        validator_classes = checkpoint["class_names"]
+    else:
+        class_names = checkpoint["class_names"]
+
+    model.load_state_dict(
+        checkpoint["model_state_dict"]
     )
+
+    model.eval()
+
+    active_model = model_type
+
+    # Release checkpoint memory.
+    del checkpoint
+    gc.collect()
 
 
 # ==============================
-# VALIDATE IMAGE TYPE
+# IMAGE READING
+# ==============================
+
+def prepare_image(image_path):
+
+    try:
+        with Image.open(image_path) as image:
+            image = image.convert("RGB")
+
+        image_tensor = transform(image).unsqueeze(0)
+
+        return image_tensor.to(device)
+
+    except Exception as error:
+        raise InvalidImageError(
+            "Invalid image. Please upload a valid chest X-ray."
+        ) from error
+
+
+# ==============================
+# VALIDATE CHEST X-RAY
 # ==============================
 
 def validate_chest_xray(image_path):
 
-    try:
-        with Image.open(image_path) as img:
-            image = img.convert("RGB")
+    global validator_classes
 
-        image_tensor = transform(image).unsqueeze(0).to(device)
+    image_tensor = prepare_image(image_path)
 
-    except Exception as error:
-        raise InvalidImageError(
-            "Invalid image file. Please upload a valid chest X-ray."
-        ) from error
+    load_model("validator")
 
-    with torch.no_grad():
+    if "chest_xray" not in validator_classes:
+        raise RuntimeError(
+            "Validator model does not contain chest_xray class."
+        )
 
-        outputs = validator_model(image_tensor)
+    if "non_chest" not in validator_classes:
+        raise RuntimeError(
+            "Validator model does not contain non_chest class."
+        )
+
+    with torch.inference_mode():
+
+        outputs = model(image_tensor)
+
         probabilities = torch.softmax(outputs, dim=1)
 
-        confidence, predicted = torch.max(probabilities, dim=1)
+        confidence, predicted = torch.max(
+            probabilities, dim=1
+        )
 
     predicted_class = validator_classes[predicted.item()]
+
     confidence = confidence.item() * 100
 
     if predicted_class != "chest_xray":
@@ -134,34 +171,34 @@ def validate_chest_xray(image_path):
 
 
 # ==============================
-# PREDICT NORMAL OR PNEUMONIA
+# NORMAL OR PNEUMONIA PREDICTION
 # ==============================
 
 def predict_xray(image_path):
 
-    # First check whether the uploaded image is a chest X-ray.
+    global class_names
+
+    # First validate the uploaded image.
     validate_chest_xray(image_path)
 
-    # Only then run the Normal/Pneumonia model.
-    try:
-        with Image.open(image_path) as img:
-            image = img.convert("RGB")
+    # Prepare the image for disease classification.
+    image_tensor = prepare_image(image_path)
 
-        image_tensor = transform(image).unsqueeze(0).to(device)
+    # Switch the same model to disease classifier weights.
+    load_model("xray")
 
-    except Exception as error:
-        raise InvalidImageError(
-            "Unable to read this image. Please upload a valid chest X-ray."
-        ) from error
+    with torch.inference_mode():
 
-    with torch.no_grad():
+        outputs = model(image_tensor)
 
-        outputs = xray_model(image_tensor)
         probabilities = torch.softmax(outputs, dim=1)
 
-        confidence, predicted = torch.max(probabilities, dim=1)
+        confidence, predicted = torch.max(
+            probabilities, dim=1
+        )
 
     prediction = class_names[predicted.item()]
+
     confidence = confidence.item() * 100
 
     return prediction, confidence
